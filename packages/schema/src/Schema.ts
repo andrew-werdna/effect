@@ -6016,8 +6016,7 @@ export const TaggedClass = <Self = never>(identifier?: string) =>
     {},
     {}
   > =>
-{
-  return makeClass({
+  makeClass({
     kind: "TaggedClass",
     identifier: identifier ?? tag,
     fields: extendFields({ [TAG]: literal(tag) }, fields),
@@ -6025,6 +6024,12 @@ export const TaggedClass = <Self = never>(identifier?: string) =>
     tag: { [TAG]: tag },
     annotations
   })
+
+abstract class TaggedErrorBase extends Data.Error {
+  abstract readonly _tag: string
+  get name(): string {
+    return this._tag
+  }
 }
 
 /**
@@ -6039,24 +6044,45 @@ export const TaggedError = <Self = never>(identifier?: string) =>
 ): [Self] extends [never] ? MissingSelfGeneric<"TaggedError", `"Tag", `>
   : Class<
     Self,
-    { readonly [TAG]: literal<[Tag]> } & Fields,
-    Types.Simplify<{ readonly [TAG]: Tag } & Struct.Type<Fields>>,
-    Types.Simplify<{ readonly [TAG]: Tag } & Struct.Encoded<Fields>>,
+    & { readonly [TAG]: literal<[Tag]> }
+    & Fields
+    & Exclude<{
+      readonly stack: PropertySignature<"?:", string | undefined, never, "?:", string | undefined>
+    }, keyof Fields>,
+    & Types.Simplify<{ readonly [TAG]: Tag } & Struct.Type<Fields>>
+    & Exclude<{
+      readonly stack?: string | undefined
+    }, keyof Fields>,
+    & Types.Simplify<{ readonly [TAG]: Tag } & Struct.Encoded<Fields>>
+    & Exclude<{
+      readonly stack?: string | undefined
+    }, keyof Fields>,
     Struct.Context<Fields>,
     Types.Simplify<Struct.Type<Fields>>,
     {},
     Cause.YieldableError
   > =>
-{
-  return makeClass({
+  makeClass({
     kind: "TaggedError",
     identifier: identifier ?? tag,
-    fields: extendFields({ [TAG]: literal(tag) }, fields),
-    Base: Data.Error,
+    fields: extendFields({ [TAG]: literal(tag) }, {
+      stack: optional(string),
+      ...fields
+    }),
+    toStringOverride(self) {
+      if (typeof self.message !== "string" || self.message.length === 0) {
+        return Pretty.make(self.constructor as any)(self)
+      }
+      let message = `${self._tag}: ${self.message}`
+      if ("stack" in self) {
+        message = `${message}\n${self.stack.split("\n").slice(1).join("\n")}`
+      }
+      return message
+    },
+    Base: TaggedErrorBase as any,
     tag: { [TAG]: tag },
     annotations
   })
-}
 
 /**
  * @category classes
@@ -6145,14 +6171,15 @@ const extendFields = (a: Struct.Fields, b: Struct.Fields): Struct.Fields => {
   return out
 }
 
-const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, tag }: {
+const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, tag, toStringOverride }: {
   kind: string
   identifier: string
   fields: Struct.Fields
   Base: new(...args: ReadonlyArray<any>) => any
   fromSchema?: Schema.Any | undefined
   tag?: { [TAG]: AST.LiteralValue } | undefined
-  annotations?: Annotations.Schema<any> | undefined
+  annotations?: Annotations.Schema<any> | undefined,
+  toStringOverride?: (self: any) => string | undefined
 }): any => {
   const classSymbol = Symbol.for(`@effect/schema/${kind}/${identifier}`)
   const schema = fromSchema ?? struct(fields)
@@ -6179,7 +6206,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
     }
 
     toString() {
-      return Pretty.make(this.constructor as any)(this)
+      return toStringOverride !== undefined ? toStringOverride(this) : Pretty.make(this.constructor as any)(this)
     }
 
     static pipe() {
@@ -6608,13 +6635,33 @@ function causeEncode<E>(cause: Cause.Cause<E>): CauseEncoded<E> {
   }
 }
 
-const causeDefectPretty: Schema<unknown> = transform(
+/**
+ * @category Cause transformations
+ * @since 1.0.0
+ */
+export const causeDefectUnknown: $unknown = transform(
   unknown,
   unknown,
-  identity,
+  (u) => {
+    if (Predicate.isObject(u) && "message" in u && typeof u.message === "string") {
+      const err = new Error(u.message, { cause: u })
+      if ("name" in u) {
+        err.name = u.name as string
+      }
+      if ("stack" in u) {
+        err.stack = u.stack as string
+      }
+      return err
+    }
+    return String(u)
+  },
   (defect) => {
-    if (Predicate.isObject(defect)) {
-      return Cause.pretty(Cause.die(defect))
+    if (defect instanceof Error) {
+      return {
+        name: defect.name,
+        message: defect.message,
+        stack: defect.stack
+      }
     }
     return String(defect)
   }
@@ -6637,7 +6684,7 @@ export interface cause<E extends Schema.All, DR> extends
  * @category Cause transformations
  * @since 1.0.0
  */
-export const cause = <E extends Schema.All, DR = never>({ defect = causeDefectPretty, error }: {
+export const cause = <E extends Schema.All, DR = never>({ defect = causeDefectUnknown, error }: {
   readonly error: E
   readonly defect?: Schema<unknown, unknown, DR> | undefined
 }): cause<E, DR> => {
@@ -6789,7 +6836,7 @@ export interface exit<A extends Schema.All, E extends Schema.All, DR> extends
  * @since 1.0.0
  */
 export const exit = <A extends Schema.All, E extends Schema.All, DR = never>(
-  { defect = causeDefectPretty, failure, success }: {
+  { defect = causeDefectUnknown, failure, success }: {
     readonly failure: E
     readonly success: A
     readonly defect?: Schema<unknown, unknown, DR> | undefined
