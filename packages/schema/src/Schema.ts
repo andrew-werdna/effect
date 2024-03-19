@@ -6628,7 +6628,9 @@ export const causeDefectUnknown: $unknown = transform(
   unknown,
   (u) => {
     if (Predicate.isObject(u) && "message" in u && typeof u.message === "string") {
-      return Object.assign(new Error(u.message, { cause: u }), u)
+      const err = Object.assign(new Error(u.message, { cause: u }), u)
+      err.stack = ""
+      return err
     }
     return String(u)
   },
@@ -6636,8 +6638,7 @@ export const causeDefectUnknown: $unknown = transform(
     if (defect instanceof Error) {
       return {
         name: defect.name,
-        message: defect.message,
-        stack: defect.stack
+        message: defect.message
       }
     }
     return String(defect)
