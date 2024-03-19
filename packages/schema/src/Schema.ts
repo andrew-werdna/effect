@@ -6037,19 +6037,9 @@ export const TaggedError = <Self = never>(identifier?: string) =>
 ): [Self] extends [never] ? MissingSelfGeneric<"TaggedError", `"Tag", `>
   : Class<
     Self,
-    & { readonly [TAG]: literal<[Tag]> }
-    & Fields
-    & Exclude<{
-      readonly stack: PropertySignature<"?:", string | undefined, never, "?:", string | undefined>
-    }, keyof Fields>,
-    & Types.Simplify<{ readonly [TAG]: Tag } & Struct.Type<Fields>>
-    & Exclude<{
-      readonly stack?: string | undefined
-    }, keyof Fields>,
-    & Types.Simplify<{ readonly [TAG]: Tag } & Struct.Encoded<Fields>>
-    & Exclude<{
-      readonly stack?: string | undefined
-    }, keyof Fields>,
+    { readonly [TAG]: literal<[Tag]> } & Fields,
+    Types.Simplify<{ readonly [TAG]: Tag } & Struct.Type<Fields>>,
+    Types.Simplify<{ readonly [TAG]: Tag } & Struct.Encoded<Fields>>,
     Struct.Context<Fields>,
     Types.Simplify<Struct.Type<Fields>>,
     {},
@@ -6061,10 +6051,7 @@ export const TaggedError = <Self = never>(identifier?: string) =>
   return makeClass({
     kind: "TaggedError",
     identifier: identifier ?? tag,
-    fields: extendFields({ [TAG]: literal(tag) }, {
-      stack: optional(string),
-      ...fields
-    }),
+    fields: extendFields({ [TAG]: literal(tag) }, fields),
     toStringOverride(self) {
       if (typeof self.message !== "string" || self.message.length === 0) {
         return Pretty.make(self.constructor as any)(self)
