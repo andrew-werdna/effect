@@ -6178,7 +6178,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
   Base: new(...args: ReadonlyArray<any>) => any
   fromSchema?: Schema.Any | undefined
   tag?: { [TAG]: AST.LiteralValue } | undefined
-  annotations?: Annotations.Schema<any> | undefined,
+  annotations?: Annotations.Schema<any> | undefined
   toStringOverride?: (self: any) => string | undefined
 }): any => {
   const classSymbol = Symbol.for(`@effect/schema/${kind}/${identifier}`)
