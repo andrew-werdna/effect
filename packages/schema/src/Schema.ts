@@ -6163,7 +6163,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
   fromSchema?: Schema.Any | undefined
   tag?: { [TAG]: AST.LiteralValue } | undefined
   annotations?: Annotations.Schema<any> | undefined
-  toStringOverride?: (self: any) => string | undefined
+  toStringOverride?: ((self: any) => string) | undefined
 }): any => {
   const classSymbol = Symbol.for(`@effect/schema/${kind}/${identifier}`)
   const schema = fromSchema ?? struct(fields)
