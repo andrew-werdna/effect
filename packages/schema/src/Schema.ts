@@ -6025,13 +6025,6 @@ export const TaggedClass = <Self = never>(identifier?: string) =>
     annotations
   })
 
-abstract class TaggedErrorBase extends Data.Error {
-  abstract readonly _tag: string
-  get name(): string {
-    return this._tag
-  }
-}
-
 /**
  * @category classes
  * @since 1.0.0
@@ -6062,7 +6055,10 @@ export const TaggedError = <Self = never>(identifier?: string) =>
     {},
     Cause.YieldableError
   > =>
-  makeClass({
+{
+  class Base extends Data.Error {}
+  ;(Base.prototype as any).name = tag
+  return makeClass({
     kind: "TaggedError",
     identifier: identifier ?? tag,
     fields: extendFields({ [TAG]: literal(tag) }, {
@@ -6079,10 +6075,11 @@ export const TaggedError = <Self = never>(identifier?: string) =>
       }
       return message
     },
-    Base: TaggedErrorBase as any,
+    Base,
     tag: { [TAG]: tag },
     annotations
   })
+}
 
 /**
  * @category classes
